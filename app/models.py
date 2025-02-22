@@ -9,6 +9,7 @@ class ProjectMaterial(models.Model):
         ('txt', 'Text File'),
         ('pptx', 'PowerPoint Presentation'),
     )
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="project_materials")
     name = models.TextField()
     file = models.URLField()
