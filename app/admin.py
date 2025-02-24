@@ -19,7 +19,7 @@ class AttemptAdmin(admin.ModelAdmin):
 
 @admin.register(Assessment)
 class AssessmentAdmin(admin.ModelAdmin):
-    list_display = ("assessment_id", "assessment_title", "difficulty", "attempts", "status")
+    list_display = ("assessment_id", "assessment_title", "difficulty", "status")
     search_fields = ("assessment_title", "assessment_id")
     list_filter = ("difficulty", "status")
 
