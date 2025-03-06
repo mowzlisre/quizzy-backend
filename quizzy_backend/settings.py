@@ -95,6 +95,9 @@ DATABASES = {
     }
 }
 
+MONGO_DB_CLIENT = "mongodb://localhost:27017/"
+MONGO_DB_NAME = "quizzy"
+
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
@@ -150,3 +153,6 @@ SIMPLE_JWT = {
     'ALGORITHM': 'HS256',
     'SIGNING_KEY': SECRET_KEY,  # Ensure a strong secret key
 }
+
+
+UPLOAD_DIR = "uploads/"

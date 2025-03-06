@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import Project, ProjectMaterial, MaterialChunks, Attempt, Assessment
 from .utils import time_since
+
 class ProjectMaterialSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProjectMaterial
