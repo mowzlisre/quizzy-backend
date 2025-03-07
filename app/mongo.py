@@ -34,5 +34,5 @@ def chunk_text(text, chunk_size=500):
 
     if current_chunk:
         chunks.append(current_chunk.strip())  # Add last chunk
-
+    print(len(chunks))
     return chunks
