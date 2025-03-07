@@ -8,4 +8,5 @@ urlpatterns = [
     path('assessment/<id>', api.AssessmentView.as_view()),
     path('project/<id>/upload', api.MaterialUploadView.as_view()),
     path('project/<id>/delete', api.DeleteFileFromProject.as_view()),
+    path('fetch/', api.FetchRelevantChunks.as_view())
 ]
