@@ -27,6 +27,7 @@ class Attempt(models.Model):
     attempt_score = models.PositiveSmallIntegerField(default=0)
     answers = models.JSONField(blank=True, null=True)
     feedback = models.JSONField(blank=True, null=True)
+    time_taken = models.PositiveSmallIntegerField(default=0)
     timeStamp = models.DateTimeField()
 
 class Assessment(models.Model):

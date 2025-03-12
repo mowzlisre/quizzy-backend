@@ -1,8 +1,8 @@
 from django.urls import path
-from . import jwt
+from . import jwt_auth
 
 urlpatterns = [
-    path('login', jwt.LoginView.as_view()),
-    path('verify-token', jwt.VerifyTokenView.as_view()),
-    path('logout', jwt.LogoutView.as_view())
+    path('login', jwt_auth.LoginView.as_view()),
+    path('verify-token', jwt_auth.VerifyTokenView.as_view()),
+    path('logout', jwt_auth.LogoutView.as_view())
 ]

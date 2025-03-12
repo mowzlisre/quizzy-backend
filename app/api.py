@@ -13,8 +13,11 @@ from .mongo import mongo_collection, chunk_text
 from .preprocess.tfidf import performTFIDF
 from sentence_transformers import SentenceTransformer
 from .rag.faiss import fetchRelevantDocuments
+from rest_framework.permissions import IsAuthenticated
 
 class ProjectsView(APIView):
+    permission_classes = [IsAuthenticated]
+    
     def get(self, request):
         projects = Project.objects.filter(user__username=request.user.username)
         data = ProjectSerializer(projects, many=True).data
@@ -132,11 +135,4 @@ class DeleteFileFromProject(APIView):
             return JsonResponse({"error": "File not found"}, status=404)
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
-        
-class FetchRelevantChunks(APIView):
-    def get(self, request):
-        query = request.GET.get('query')
-        k = int(request.GET.get('k'))
-        result = fetchRelevantDocuments(query, k)
-        return JsonResponse(result, safe=False)
 

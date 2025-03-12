@@ -7,6 +7,8 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import InvalidToken
+from django.conf import settings
+import jwt
 
 # Login View
 class LoginView(TokenObtainPairView):
@@ -66,3 +68,38 @@ class RegisterView(APIView):
 
         user = User.objects.create_user(username=username, password=password)
         return Response({"message": "User registered successfully"}, status=status.HTTP_201_CREATED)
+
+class JWTAuthenticationMixin:
+    def verify_jwt_token(self, request):
+        """
+        Verifies the JWT token from the request headers.
+        Returns the decoded payload if valid, otherwise None.
+        """
+        token = request.headers.get('Authorization')
+        if not token:
+            return None
+
+        # The token is expected to be in the format: 'Bearer <token>'
+        try:
+            token = token.split()[1]  # Get the actual token from the 'Bearer <token>' format
+            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
+            return payload
+        except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+            return None
+
+    def dispatch(self, request, *args, **kwargs):
+        """
+        Overriding dispatch to check JWT token before proceeding with the view logic.
+        """
+        payload = self.verify_jwt_token(request)
+
+        if payload is None:
+            return Response(
+                {"detail": "Unauthorized Access"},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        # Optionally, add the user info or token details to the request
+        request.user = payload.get('user', None)
+        
+        return super().dispatch(request, *args, **kwargs)
