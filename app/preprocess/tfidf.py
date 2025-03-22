@@ -4,9 +4,6 @@ import spacy
 import string
 from sklearn.feature_extraction.text import TfidfVectorizer
 
-# 📝 Load NLP Models
-nltk.download("punkt")
-nltk.download("stopwords")
 nlp = spacy.load("en_core_web_sm")
 
 # 📝 Function to Extract Text from a PDF File

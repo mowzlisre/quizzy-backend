@@ -10,8 +10,6 @@ mongo_db = mongo_client[settings.MONGO_DB_NAME]
 mongo_collection = mongo_db["file_chunks"]
 
 
-nltk.download('punkt_tab')
-
 def preprocess_text(text):
     """Cleans text before chunking."""
     text = re.sub(r'\s+', ' ', text).strip()  # Normalize whitespace
@@ -35,4 +33,4 @@ def chunk_text(text, chunk_size=500):
     if current_chunk:
         chunks.append(current_chunk.strip())  # Add last chunk
     print(len(chunks))
-    return chunks
+    return chunks, text

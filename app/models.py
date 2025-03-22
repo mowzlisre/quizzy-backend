@@ -29,6 +29,13 @@ class Attempt(models.Model):
     feedback = models.JSONField(blank=True, null=True)
     time_taken = models.PositiveSmallIntegerField(default=0)
     timeStamp = models.DateTimeField()
+    submission = models.BooleanField(default=False)
+    timed = models.BooleanField(default=False)
+    total_duration = models.PositiveSmallIntegerField(default=0)
+    partial_credits = models.BooleanField(default=False)
+    negative_score = models.BooleanField(default=False)
+    proctored = models.BooleanField(default=False)
+    proctor_meta = models.JSONField()
 
 class Assessment(models.Model):
     DIFFICULTY = (

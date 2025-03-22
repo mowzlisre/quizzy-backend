@@ -14,6 +14,8 @@ from .preprocess.tfidf import performTFIDF
 from sentence_transformers import SentenceTransformer
 from .rag.faiss import fetchRelevantDocuments
 from rest_framework.permissions import IsAuthenticated
+import requests
+
 
 class ProjectsView(APIView):
     permission_classes = [IsAuthenticated]
@@ -44,7 +46,7 @@ class AssessmentView(APIView):
 
 class MaterialUploadView(APIView):
     def post(self, request, id):
-        try:
+        # try:
             project = Project.objects.get(id=id)
 
             if "files" not in request.FILES:
@@ -76,10 +78,12 @@ class MaterialUploadView(APIView):
 
                 if extracted_text:
                     chunk_size = 500  
-                    chunks = chunk_text(extracted_text, chunk_size)
+                    chunks, text = chunk_text(extracted_text, chunk_size)
                     model = SentenceTransformer("all-MiniLM-L6-v2")
-                    important_tokens = performTFIDF(full_path)
-
+                    res = requests.post("http://localhost:8001/generate/topics", json={"context": text})
+                    if isinstance(res.json(), list):
+                        topics = res.json()
+                    important_tokens = list(set(topics))
                     mongo_collection.insert_many([
                         {
                             "project_id": str(project.id),
@@ -96,8 +100,8 @@ class MaterialUploadView(APIView):
 
             return JsonResponse({"status": "success"})
 
-        except Project.DoesNotExist:
-            return JsonResponse({"error": "Project not found"}, status=404)
+        # except Project.DoesNotExist:
+        #     return JsonResponse({"error": "Project not found"}, status=404)
 
 
 class DeleteFileFromProject(APIView):
@@ -136,3 +140,5 @@ class DeleteFileFromProject(APIView):
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
 
+
+# Use singleton script for lazy loading models
