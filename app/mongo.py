@@ -1,9 +1,10 @@
 from pymongo import MongoClient
 from django.conf import settings
 import re
-
 from nltk.tokenize import sent_tokenize
-import nltk
+from .singleton import safe_nltk_download
+
+safe_nltk_download("punkt_tab", "tokenizers/punkt_tab")
 
 mongo_client = MongoClient(settings.MONGO_DB_CLIENT)
 mongo_db = mongo_client[settings.MONGO_DB_NAME]

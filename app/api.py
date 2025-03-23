@@ -46,7 +46,7 @@ class AssessmentView(APIView):
 
 class MaterialUploadView(APIView):
     def post(self, request, id):
-        # try:
+        try:
             project = Project.objects.get(id=id)
 
             if "files" not in request.FILES:
@@ -97,11 +97,12 @@ class MaterialUploadView(APIView):
                         }
                         for i, chunk in enumerate(chunks)
                     ])
+                print("Done")
 
-            return JsonResponse({"status": "success"})
+            return JsonResponse({"status": "success"}, safe=False)
 
-        # except Project.DoesNotExist:
-        #     return JsonResponse({"error": "Project not found"}, status=404)
+        except Project.DoesNotExist:
+            return JsonResponse({"error": "Project not found"}, status=404)
 
 
 class DeleteFileFromProject(APIView):
@@ -139,6 +140,3 @@ class DeleteFileFromProject(APIView):
             return JsonResponse({"error": "File not found"}, status=404)
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
-
-
-# Use singleton script for lazy loading models
