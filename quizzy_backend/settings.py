@@ -154,3 +154,9 @@ SIMPLE_JWT = {
 
 
 UPLOAD_DIR = "uploads/"
+CELERY_BROKER_URL = 'redis://localhost:6379/0'
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+CELERYD_FORCE_EXECV = True
+CELERY_TASK_ROUTES = {
+    'app.tasks.process_uploaded_file': {'queue': 'gpu_queue'},
+}

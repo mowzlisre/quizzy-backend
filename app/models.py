@@ -16,6 +16,7 @@ class ProjectMaterial(models.Model):
     file = models.URLField()
     file_type = models.CharField(max_length=10, choices=FILE_TYPES)
     uploaded_at = models.DateTimeField(auto_now_add=True)
+    important_tokens = models.JSONField()
 
 class MaterialChunks(models.Model):
     text = models.TextField()

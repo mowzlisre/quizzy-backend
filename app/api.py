@@ -15,7 +15,8 @@ from sentence_transformers import SentenceTransformer
 from .rag.faiss import fetchRelevantDocuments
 from rest_framework.permissions import IsAuthenticated
 import requests
-
+import json
+from .tasks import process_uploaded_file
 
 class ProjectsView(APIView):
     permission_classes = [IsAuthenticated]
@@ -70,35 +71,17 @@ class MaterialUploadView(APIView):
                 material.file_type = ext
                 material.file = full_path
                 material.uploaded_at = timezone.now()
+                material.important_tokens = json.dumps([])
                 material.save()
                 project.materials.add(material)
                 project.save()
-                
-                extracted_text = extract_text(full_path, original_name)
-
-                if extracted_text:
-                    chunk_size = 500  
-                    chunks, text = chunk_text(extracted_text, chunk_size)
-                    model = SentenceTransformer("all-MiniLM-L6-v2")
-                    res = requests.post("http://localhost:8001/generate/topics", json={"context": text})
-                    if isinstance(res.json(), list):
-                        topics = res.json()
-                    important_tokens = list(set(topics))
-                    mongo_collection.insert_many([
-                        {
-                            "project_id": str(project.id),
-                            "file_id": str(material.id),
-                            "file_name": original_name,
-                            "chunk_index": i,
-                            "chunk_text": chunk,
-                            "important_tokens" : important_tokens,
-                            "created_at": timezone.now(),
-                            "embeddings" : model.encode(chunk).tolist()
-                        }
-                        for i, chunk in enumerate(chunks)
-                    ])
-                print("Done")
-
+                process_uploaded_file.delay(
+                    material.id,
+                    project.id,
+                    request.user.id,
+                    original_name,
+                    full_path
+                )
             return JsonResponse({"status": "success"}, safe=False)
 
         except Project.DoesNotExist:
