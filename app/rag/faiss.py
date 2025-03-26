@@ -11,8 +11,6 @@ model = SentenceTransformer("all-MiniLM-L6-v2")
 
 def fetchRelevantDocuments(query, k):
     try:
-        start = time.time()
-
         # Fetch All Stored Embeddings from MongoDB
         documents = list(mongo_collection.find({}, {"_id": 1, "text": 1, "embeddings": 1}))
         if not documents:
@@ -70,9 +68,6 @@ def fetchRelevantDocuments(query, k):
                 "text": doc["chunk_text"],  # Ensure field consistency
                 "coherence_score": doc["coherence_score"]
             })
-
-        end = time.time()
-        print(f"Executed in {end-start}s")
 
         return {"query": query, "results": results}
 

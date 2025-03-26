@@ -30,16 +30,16 @@ class AssessmentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Assessment
-        fields = '__all__'
-        extra_fields = ['author_name']
+        fields = [ 'id', 'assessment_id', 'assessment_title', 'author', 'author_name', 'difficulty', 'quiz', 'attempts', 'status', 'feedback', 'project', 'createdAt', 'created', 'recentAttempt']
 
     def get_created(self, obj):
         return obj.created
     
     def get_recentAttempt(self, obj):
-        """Returns the most recent attempt based on timestamp"""
         recent_attempt = obj.attempts.order_by('-timeStamp').first()
-        return time_since(recent_attempt.timeStamp)
+        if recent_attempt:
+            return time_since(recent_attempt.timeStamp)
+        return None
 
 class ProjectSerializer(serializers.ModelSerializer):
     materials = ProjectMaterialSerializer(many=True, read_only=True)

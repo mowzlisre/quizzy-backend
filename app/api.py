@@ -1,22 +1,20 @@
 from rest_framework.views import APIView
 from django.http import JsonResponse
-from .models import Project, ProjectMaterial, MaterialChunks, Attempt, Assessment
+from .models import Project, ProjectMaterial, Assessment
 from .serializers import ProjectSerializer, AssessmentSerializer
 import os, uuid
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
-from app.preprocess.text_extract import extract_text
 from django.contrib.auth.models import User
 from django.utils import timezone
 from django.conf import settings
-from .mongo import mongo_collection, chunk_text
-from .preprocess.tfidf import performTFIDF
-from sentence_transformers import SentenceTransformer
-from .rag.faiss import fetchRelevantDocuments
+from .mongo import mongo_collection
 from rest_framework.permissions import IsAuthenticated
-import requests
 import json
 from .tasks import process_uploaded_file
+import random
+from .questions.question_process import extract_important_tokens, get_buffered_counts, generate_topic_list, generate_questions, process_mcq_questions, assign_question_type, filter_final_questions
+
 
 class ProjectsView(APIView):
     permission_classes = [IsAuthenticated]
@@ -44,7 +42,6 @@ class AssessmentView(APIView):
         data = AssessmentSerializer(assessment).data
         return JsonResponse(data, safe=False)
     
-
 class MaterialUploadView(APIView):
     def post(self, request, id):
         try:
@@ -87,7 +84,6 @@ class MaterialUploadView(APIView):
         except Project.DoesNotExist:
             return JsonResponse({"error": "Project not found"}, status=404)
 
-
 class DeleteFileFromProject(APIView):
     def post(self, request, id):
         try:
@@ -123,3 +119,46 @@ class DeleteFileFromProject(APIView):
             return JsonResponse({"error": "File not found"}, status=404)
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
+
+
+class CreateAssessment(APIView):
+    def post(self, request):
+        try:
+            data = request.data
+            project = Project.objects.get(id=data.get('uuid'))
+            assessment = Assessment.objects.create(
+                id=uuid.uuid4(),
+                project=project,
+                author=User.objects.get(id=1),
+                assessment_title=data.get('title'),
+                difficulty="Easy",
+                status="Started",
+                createdAt=timezone.now()
+            )
+
+            materials = ProjectMaterial.objects.filter(id__in=data.get('materials'))
+            important_tokens = extract_important_tokens(materials)
+            question_counts = data.get("questionCounts")
+            concentrations = data.get("concentration")
+
+            buffered_counts = get_buffered_counts(question_counts)
+            topics = generate_topic_list(buffered_counts, concentrations, important_tokens)
+            generated_questions = generate_questions(topics)
+            selective = assign_question_type(generated_questions, buffered_counts)
+            selective = process_mcq_questions(selective)
+
+            final_questions = filter_final_questions(selective, question_counts)
+
+            assessment.quiz = final_questions
+            assessment.save()
+
+            return JsonResponse({
+                "status": "success",
+                "message": "Assessment created and questions generated.",
+                "questions_generated": len(final_questions)
+            })
+
+        except Exception as e:
+            return JsonResponse({"status": "failed", "error": str(e)}, safe=False)
+
+

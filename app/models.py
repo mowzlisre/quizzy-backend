@@ -56,7 +56,17 @@ class Assessment(models.Model):
     project = models.ForeignKey('Project', on_delete=models.CASCADE, related_name="assessments", null=True, blank=True)
     createdAt = models.DateTimeField()
 
-    
+    def save(self, *args, **kwargs):
+        if not self.assessment_id:
+            latest = Assessment.objects.order_by('-createdAt').first()
+            if latest and latest.assessment_id:
+                last_number = int(latest.assessment_id[1:])
+            else:
+                last_number = 0
+            new_number = last_number + 1
+            self.assessment_id = f"A{new_number:03d}" 
+        super().save(*args, **kwargs)
+        
     @property
     def created(self):
         return time_since(self.createdAt)
