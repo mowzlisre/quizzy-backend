@@ -96,6 +96,7 @@ def process_mcq_questions(questions):
                         "answer": question["answer"]
                     })
                     mcq = response.json()
+
                     if (
                         isinstance(mcq.get("options"), list) and
                         all(isinstance(opt, str) for opt in mcq["options"]) and
@@ -104,11 +105,12 @@ def process_mcq_questions(questions):
                     ):
                         question.update(mcq)
                         break
-                except Exception:
+                except Exception as e:
                     pass
                 attempt += 1
                 time.sleep(1)
     return questions
+
 
 def filter_final_questions(questions, original_counts):
     final = []

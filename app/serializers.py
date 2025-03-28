@@ -47,3 +47,9 @@ class ProjectSerializer(serializers.ModelSerializer):
     class Meta:
         model = Project
         fields = '__all__'
+
+class NewAttemptSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Attempt
+        fields = ['id', 'max_score', 'attempt_score', 'timed', 'total_duration', 'partial_credits', 'negative_score', 'proctored', 'proctor_meta']
+

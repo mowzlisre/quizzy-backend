@@ -33,10 +33,13 @@ class Attempt(models.Model):
     submission = models.BooleanField(default=False)
     timed = models.BooleanField(default=False)
     total_duration = models.PositiveSmallIntegerField(default=0)
+    start_time = models.DateTimeField(null=True, blank=True)
+    end_time = models.DateTimeField(null=True, blank=True)
     partial_credits = models.BooleanField(default=False)
     negative_score = models.BooleanField(default=False)
     proctored = models.BooleanField(default=False)
     proctor_meta = models.JSONField()
+    ek = models.TextField(null=True, blank=True)
 
 class Assessment(models.Model):
     DIFFICULTY = (
@@ -55,6 +58,7 @@ class Assessment(models.Model):
     feedback = models.JSONField(null=True, blank=True)
     project = models.ForeignKey('Project', on_delete=models.CASCADE, related_name="assessments", null=True, blank=True)
     createdAt = models.DateTimeField()
+    ek = models.TextField(null=True, blank=True)
 
     def save(self, *args, **kwargs):
         if not self.assessment_id:
