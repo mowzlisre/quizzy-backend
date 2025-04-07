@@ -21,13 +21,15 @@ def process_uploaded_file(material_id, project_id, user_id, original_name, full_
         model = SentenceTransformer("all-MiniLM-L6-v2")
         chunk_size = 500  
         chunks, text = chunk_text(extracted_text, chunk_size)
+        print("requesting api for task")
         res = requests.post("http://localhost:8001/generate/topics", json={"context": text})
         if isinstance(res.json(), list):
             topics = res.json()
-        important_tokens = list(set(topics))
-        material.important_tokens = json.dumps(important_tokens)
-        # material.important_tokens = json.dumps([])
-        material.save()
+            important_tokens = list(set(topics))
+            material.important_tokens = json.dumps(important_tokens)
+            # material.important_tokens = json.dumps([])
+            material.save()
+        print("pushing to mongodb")
         mongo_collection.insert_many([
             {
                 "project_id": str(project.id),

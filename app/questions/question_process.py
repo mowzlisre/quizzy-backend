@@ -116,5 +116,24 @@ def filter_final_questions(questions, original_counts):
     final = []
     for qtype, count in original_counts.items():
         typed = [q for q in questions if q.get("type") == qtype]
+
+        if qtype == "mcq":
+            typed = [
+                q for q in typed
+                if isinstance(q.get("options"), list) and len(q["options"]) >= 4
+            ]
+
         final.extend(typed[:count])
     return final
+
+def evaluate_answers(payload):
+    try:
+        response = requests.post("http://localhost:8001/evaluate", json=payload)
+        if response.status_code == 200:
+            return response.json() 
+        else:
+            print(f"Error: Status {response.status_code}")
+            return None
+    except Exception as e:
+        print(f"Exception during batch evaluation: {e}")
+        return None

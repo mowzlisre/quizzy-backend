@@ -13,8 +13,9 @@ from rest_framework.permissions import IsAuthenticated
 import json
 from .tasks import process_uploaded_file
 import random
-from .questions.question_process import extract_important_tokens, get_buffered_counts, generate_topic_list, generate_questions, process_mcq_questions, assign_question_type, filter_final_questions
+from .questions.question_process import extract_important_tokens, get_buffered_counts, generate_topic_list, generate_questions, process_mcq_questions, assign_question_type, filter_final_questions, evaluate_answers
 from .utils import generate_aes_key, aes_encrypt, encrypt_key_with_secret_key, decrypt_key_with_secret_key, aes_decrypt
+from django.utils.dateparse import parse_datetime
 
 class ProjectsView(APIView):
     permission_classes = [IsAuthenticated]
@@ -72,6 +73,7 @@ class MaterialUploadView(APIView):
                 material.save()
                 project.materials.add(material)
                 project.save()
+                print("Processing files")
                 process_uploaded_file.delay(
                     material.id,
                     project.id,
@@ -79,6 +81,7 @@ class MaterialUploadView(APIView):
                     original_name,
                     full_path
                 )
+                print("File processed")
             return JsonResponse({"status": "success"}, safe=False)
 
         except Project.DoesNotExist:
@@ -147,7 +150,6 @@ class CreateAssessment(APIView):
             selective = assign_question_type(generated_questions, buffered_counts)
             selective = process_mcq_questions(selective)
             final_questions = filter_final_questions(selective, question_counts)
-
             aes_key = generate_aes_key()
             encrypted_questions = aes_encrypt(final_questions, aes_key)
             encrypted_key = encrypt_key_with_secret_key(aes_key)
@@ -192,7 +194,7 @@ class NewAttempt(APIView):
                 points = question_type_points[question['type']]
                 question['max_points'] = points
                 total_score += points
-
+            
             # Process the attempt
             attempt = assessment.attempts.create(
                 id=uuid.uuid4(),
@@ -200,7 +202,7 @@ class NewAttempt(APIView):
                 attempt_score=0,
                 timeStamp=timezone.now(),
                 submission=False,
-                timed= True if request.data.get('mode', False) == "timed" else False,
+                timed= True if request.data.get('mode', False) == "Timed" else False,
                 total_duration=request.data.get('duration', 0),
                 partial_credits=request.data.get('partialScoring', False),
                 negative_score=request.data.get('negativeScoring', False),
@@ -209,6 +211,7 @@ class NewAttempt(APIView):
             )
 
             attempt = NewAttemptSerializer(attempt).data
+            attempt["title"] = assessment.assessment_title
             attempt["uuid"] = request.data.get('uuid')
             return JsonResponse(attempt, safe=False)
         
@@ -252,8 +255,6 @@ class StartAttempt(APIView):
                 q['isAnswered'] = False
                 q['isMarked'] = False
                 q['answer'] = ''
-            from pprint import pprint
-            pprint(attempt)
             return JsonResponse(attempt, safe=False)
         
         except Assessment.DoesNotExist:
@@ -262,3 +263,73 @@ class StartAttempt(APIView):
             return JsonResponse({"status": "failed", "error": "Attempt not found"}, status=404)
         except Exception as e:
             return JsonResponse({"status": "failed", "error": str(e)}, status=500)
+        
+
+class AssessmentSubmission(APIView):
+    def post(self, request):
+        try:
+            submissions = request.data.get("quiz", [])
+            meta = request.data.get("meta", {})
+            attempt_id = request.data.get("uuid")
+
+            if not attempt_id or not submissions or not meta:
+                return JsonResponse({"error": "Missing required fields."}, status=400)
+
+            try:
+                attempt = Attempt.objects.get(id=attempt_id)
+            except Attempt.DoesNotExist:
+                return JsonResponse({"error": "Attempt not found."}, status=404)
+
+            # If already submitted, return existing data
+            if attempt.submission:
+                return JsonResponse({
+                    "attempt_id": str(attempt.id),
+                    "score": attempt.attempt_score,
+                    "max_score": attempt.max_score,
+                    "feedback": attempt.feedback
+                }, status=200)
+
+            # Build payload for evaluation
+            payload = []
+            for submission in submissions:
+                payload.append({
+                    "id": submission.get("id"),
+                    "context": submission.get("context"),
+                    "question": submission.get("question"),
+                    "answer": submission.get("answer"),
+                    "max_points": submission.get("max_points"),
+                })
+
+            # Evaluate answers
+            results = evaluate_answers(payload)
+
+            feedback = []
+            total_score = 0
+            for result in results:
+                feedback.append({
+                    "id": result["id"],
+                    "feedback": result["feedback"],
+                })
+                total_score += result["points"]
+
+            # Update the Attempt model
+            attempt.attempt_score = total_score
+            attempt.max_score = sum([s.get("max_points", 0) for s in submissions])
+            attempt.answers = submissions
+            attempt.feedback = feedback
+            attempt.submission = True
+            attempt.start_time = parse_datetime(meta.get("start_time"))
+            attempt.end_time = parse_datetime(meta.get("end_time"))
+            attempt.total_duration = int(meta.get("duration_in_seconds", 0))
+            attempt.time_taken = int(meta.get("duration_in_seconds", 0))
+            attempt.save()
+
+            return JsonResponse({
+                "attempt_id": str(attempt.id),
+                "score": total_score,
+                "max_score": attempt.max_score,
+                "feedback": feedback
+            }, status=200)
+
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)

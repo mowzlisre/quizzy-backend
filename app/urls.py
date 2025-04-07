@@ -9,6 +9,7 @@ urlpatterns = [
     path('attempt/new', api.NewAttempt.as_view()),
     path('attempt/start', api.StartAttempt.as_view()),
     path('assessment/<id>', api.AssessmentView.as_view()),
+    path('assessment/<id>/submit', api.AssessmentSubmission.as_view()),
     path('project/<id>/upload', api.MaterialUploadView.as_view()),
     path('project/<id>/delete', api.DeleteFileFromProject.as_view()),
 ]
