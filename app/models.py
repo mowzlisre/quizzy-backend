@@ -84,3 +84,4 @@ class Project(models.Model):
     name = models.CharField(max_length=256)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="projects")
     materials = models.ManyToManyField(ProjectMaterial, related_name="projects")
+    createdAt = models.DateTimeField()

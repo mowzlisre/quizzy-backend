@@ -30,7 +30,21 @@ class ProjectView(APIView):
         project = Project.objects.get(user__username=request.user.username, id=id)
         data = ProjectSerializer(project).data
         return JsonResponse(data, safe=False)
-    
+
+class CreateProject(APIView):
+    def post(self, request):
+        try:
+            data = request.data
+            project = Project.objects.create(
+                id=uuid.uuid4(),
+                user=User.objects.get(id=request.user.id),
+                name=data.get('title'),
+                createdAt=timezone.now()
+            )
+            return JsonResponse({"status": "success", "project_id": str(project.id)}, safe=False)
+        except Exception as e:
+            return JsonResponse({"status": "failed", "error": str(e)}, safe=False)
+
 class AssessmentsView(APIView):
     def get(self, request, id):
         assessments = Assessment.objects.filter(project__id=id)
@@ -123,7 +137,6 @@ class DeleteFileFromProject(APIView):
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
 
-
 class CreateAssessment(APIView):
     def post(self, request):
         try:
@@ -166,7 +179,6 @@ class CreateAssessment(APIView):
 
         except Exception as e:
             return JsonResponse({"status": "failed", "error": str(e)}, safe=False)
-
 
 class NewAttempt(APIView):
     def post(self, request):
@@ -264,41 +276,41 @@ class StartAttempt(APIView):
         except Exception as e:
             return JsonResponse({"status": "failed", "error": str(e)}, status=500)
         
-
 class AssessmentSubmission(APIView):
-    def post(self, request):
+    def post(self, request, id):
         try:
             submissions = request.data.get("quiz", [])
             meta = request.data.get("meta", {})
-            attempt_id = request.data.get("uuid")
 
-            if not attempt_id or not submissions or not meta:
+            if not submissions or not meta:
                 return JsonResponse({"error": "Missing required fields."}, status=400)
 
             try:
-                attempt = Attempt.objects.get(id=attempt_id)
+                attempt = Attempt.objects.get(id=id)
             except Attempt.DoesNotExist:
                 return JsonResponse({"error": "Attempt not found."}, status=404)
 
             # If already submitted, return existing data
             if attempt.submission:
                 return JsonResponse({
+                    "status": "success",
                     "attempt_id": str(attempt.id),
                     "score": attempt.attempt_score,
                     "max_score": attempt.max_score,
-                    "feedback": attempt.feedback
+                    "feedback": attempt.feedback 
                 }, status=200)
 
             # Build payload for evaluation
-            payload = []
-            for submission in submissions:
-                payload.append({
+            payload = [
+                {
                     "id": submission.get("id"),
                     "context": submission.get("context"),
                     "question": submission.get("question"),
                     "answer": submission.get("answer"),
                     "max_points": submission.get("max_points"),
-                })
+                }
+                for submission in submissions
+            ]
 
             # Evaluate answers
             results = evaluate_answers(payload)
@@ -309,14 +321,26 @@ class AssessmentSubmission(APIView):
                 feedback.append({
                     "id": result["id"],
                     "feedback": result["feedback"],
+                    "points": result["points"],
                 })
                 total_score += result["points"]
 
-            # Update the Attempt model
+            # Decrypt AES key stored in Attempt.ek
+            if not attempt.ek:
+                aes_key = generate_aes_key()
+                attempt.ek = encrypt_key_with_secret_key(aes_key)
+            else:
+                aes_key = decrypt_key_with_secret_key(attempt.ek)
+
+            # Encrypt answers and feedback using that AES key
+            encrypted_answers = aes_encrypt(submissions, aes_key)
+            encrypted_feedback = aes_encrypt(feedback, aes_key)
+
+            # Save attempt updates
             attempt.attempt_score = total_score
             attempt.max_score = sum([s.get("max_points", 0) for s in submissions])
-            attempt.answers = submissions
-            attempt.feedback = feedback
+            attempt.answers = encrypted_answers
+            attempt.feedback = encrypted_feedback
             attempt.submission = True
             attempt.start_time = parse_datetime(meta.get("start_time"))
             attempt.end_time = parse_datetime(meta.get("end_time"))
@@ -325,11 +349,112 @@ class AssessmentSubmission(APIView):
             attempt.save()
 
             return JsonResponse({
-                "attempt_id": str(attempt.id),
-                "score": total_score,
-                "max_score": attempt.max_score,
-                "feedback": feedback
+                "status": "success",
             }, status=200)
 
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
+        
+class AttemptAnalytics(APIView):
+    def get(self, request, id):
+        try:
+            if not id:
+                return JsonResponse({"error": "Missing attempt ID."}, status=400)
+
+            attempt = Attempt.objects.get(id=id)
+            assessment = Assessment.objects.filter(attempts=attempt).first()
+
+            if not attempt or not assessment:
+                return JsonResponse({"error": "Attempt or Assessment not found."}, status=404)
+
+            if not attempt.ek or not assessment.ek:
+                return JsonResponse({"error": "Missing encryption key(s)."}, status=400)
+
+            # 🔓 Decrypt keys
+            assessment_aes_key = decrypt_key_with_secret_key(assessment.ek)
+            attempt_aes_key = decrypt_key_with_secret_key(attempt.ek)
+
+            # 🔓 Decrypt quiz (original questions with correct answers)
+            quiz = aes_decrypt(
+                ciphertext=assessment.quiz.get("ciphertext"),
+                iv=assessment.quiz.get("iv"),
+                key=assessment_aes_key
+            ) if assessment.quiz else []
+            
+            # 🔓 Decrypt user answers
+            answers = aes_decrypt(
+                ciphertext=attempt.answers.get("ciphertext"),
+                iv=attempt.answers.get("iv"),
+                key=attempt_aes_key
+            ) if attempt.answers else []
+
+            # 🔓 Decrypt feedback
+            feedback = aes_decrypt(
+                ciphertext=attempt.feedback.get("ciphertext"),
+                iv=attempt.feedback.get("iv"),
+                key=attempt_aes_key
+            ) if attempt.feedback else []
+
+            # 🔁 Build maps for quick lookup
+            questions_dict = {item['id']: item for item in quiz}
+            answers_dict = {item['id']: item for item in answers}
+            feedback_dict = {item['id']: item for item in feedback}
+
+            # Merge the dictionaries
+            merged = []
+            for qid in questions_dict:
+                question_item = questions_dict[qid].copy()
+                answer_item = answers_dict.get(qid, {}).copy()
+                feedback_item = feedback_dict.get(qid, {}).copy()
+
+                # Rename 'answer' from questions → correctAnswer
+                correct_answer = question_item.pop("answer", None)
+                if correct_answer is not None:
+                    question_item["correctAnswer"] = correct_answer
+
+                # Rename 'answer' from answers → userAnswer
+                user_answer = answer_item.pop("answer", None)
+                if user_answer is not None:
+                    question_item["userAnswer"] = user_answer
+
+                # Add feedback fields
+                if "points" in feedback_item:
+                    question_item["points"] = feedback_item["points"]
+                if "feedback" in feedback_item:
+                    question_item["feedback"] = feedback_item["feedback"]
+
+                # Merge remaining answer fields
+                for key in answer_item:
+                    if key not in question_item:
+                        question_item[key] = answer_item[key]
+
+                merged.append(question_item)
+
+            return JsonResponse({
+                "questions": merged,
+                "score": attempt.attempt_score,
+                "max_score": attempt.max_score,
+                "time_taken": attempt.time_taken,
+                "total_duration": attempt.total_duration,
+                "title": assessment.assessment_title
+            }, status=200)
+
+        except Attempt.DoesNotExist:
+            return JsonResponse({"error": "Attempt not found."}, status=404)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+        
+class SampleView(APIView):
+    def get(self, request):
+        assessment = Assessment.objects.get(id=request.data.get('uuid'))
+
+        encrypted_quiz = assessment.quiz
+        encrypted_key = assessment.ek
+        aes_key = decrypt_key_with_secret_key(encrypted_key)
+        decrypted_quiz = aes_decrypt(
+            ciphertext=encrypted_quiz['ciphertext'],
+            iv=encrypted_quiz['iv'],
+            key=aes_key
+        )
+
+        return JsonResponse(decrypted_quiz, safe=False)

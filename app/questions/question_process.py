@@ -111,20 +111,32 @@ def process_mcq_questions(questions):
                 time.sleep(1)
     return questions
 
-
 def filter_final_questions(questions, original_counts):
     final = []
+    current_id = 1  # start IDs from 1
+
     for qtype, count in original_counts.items():
+        # Filter by type
         typed = [q for q in questions if q.get("type") == qtype]
 
+        # Special filtering for MCQs (must have at least 4 options)
         if qtype == "mcq":
             typed = [
                 q for q in typed
                 if isinstance(q.get("options"), list) and len(q["options"]) >= 4
             ]
 
-        final.extend(typed[:count])
+        # Take only the required count
+        selected = typed[:count]
+
+        # Assign a unique sequential ID to each selected question
+        for q in selected:
+            q["id"] = current_id
+            current_id += 1
+            final.append(q)
+
     return final
+
 
 def evaluate_answers(payload):
     try:
